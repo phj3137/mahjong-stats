@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | 날짜 | `played_at` | `date` | 입력 | 대국이 진행된 날짜 |
 | 구분 | `game_type` | `text` 또는 `enum` | 입력 | 일반전, 스프린트 등 대국 종류 |
-| 대국번호 | `match_no` | `integer` | 입력 또는 자동생성 | 날짜 또는 전체 기준 대국 식별 번호 |
+| 대국번호 | `game_code` | `text` | 자동생성 | 날짜별 대국 식별 코드. 예: `20260426-01` |
 | 이름 | `player_name` | `text` | 선택 | 플레이어 표시용 이름 |
 | 점수 | `raw_score` | `integer` | 입력 | 대국 종료 후 점봉 원점수 |
 | 순위 | `rank` | `integer` | 계산 | 점수 기준 1~4위 |
@@ -30,7 +30,7 @@
 | `id` | `uuid` | 대국 고유 ID |
 | `played_at` | `date` | 대국 날짜 |
 | `game_type` | `text` | 대국 구분 |
-| `match_no` | `integer` | 대국번호 |
+| `game_code` | `text` | 날짜별 대국코드 |
 | `created_at` | `timestamptz` | 등록시간 |
 | `created_by` | `uuid` | 등록자 |
 

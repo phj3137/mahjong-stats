@@ -8,6 +8,7 @@ export type GameMode = "online_1x" | "online_3x" | "offline_1x";
 
 export type Game = {
   id: string;
+  game_code: string;
   played_at: string;
   created_at: string;
   registered_by: string | null;

@@ -114,6 +114,14 @@ export default function GameDetailPage({
                 <Stack spacing={0.5}>
                   <Stack direction="row" sx={{ gap: 1 }}>
                     <Typography color="text.secondary" sx={{ fontSize: 12, minWidth: 56 }}>
+                      대국코드
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {game.game_code}
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" sx={{ gap: 1 }}>
+                    <Typography color="text.secondary" sx={{ fontSize: 12, minWidth: 56 }}>
                       대국 날짜
                     </Typography>
                     <Typography sx={{ fontSize: 12 }}>

@@ -8,8 +8,6 @@ import {
   CardContent,
   Chip,
   CircularProgress,
-  MenuItem,
-  Select,
   Stack,
   Typography,
 } from "@mui/material";
@@ -20,6 +18,8 @@ import { useScoreSettings } from "@/lib/score-settings";
 import { calculateScore, formatPoint, getModeLabel } from "@/lib/scoring";
 import { supabase } from "@/lib/supabase";
 import type { GameWithResults, Player } from "@/types";
+
+const RANK_COLORS = ["#b5892a", "#8c9aa3", "#8b6553", "#9e9e9e"];
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -74,23 +74,37 @@ export default function HistoryPage() {
           </Typography>
         </Stack>
 
-        {/* 플레이어 필터 */}
+        {/* 플레이어 Chip 필터 */}
         {players.length > 0 && (
-          <Select
-            displayEmpty
-            fullWidth
-            size="small"
-            sx={{ mb: 2 }}
-            value={filterPlayerId}
-            onChange={(e) => setFilterPlayerId(e.target.value)}
+          <Box
+            sx={{
+              display: "flex",
+              gap: 0.75,
+              overflowX: "auto",
+              pb: 1.25,
+              mb: 1.5,
+              "&::-webkit-scrollbar": { display: "none" },
+              scrollbarWidth: "none",
+            }}
           >
-            <MenuItem value="all">전체 플레이어</MenuItem>
+            <Chip
+              label="전체"
+              onClick={() => setFilterPlayerId("all")}
+              color={filterPlayerId === "all" ? "primary" : "default"}
+              variant={filterPlayerId === "all" ? "filled" : "outlined"}
+              sx={{ flexShrink: 0 }}
+            />
             {players.map((p) => (
-              <MenuItem key={p.id} value={p.id}>
-                {p.name}
-              </MenuItem>
+              <Chip
+                key={p.id}
+                label={p.name}
+                onClick={() => setFilterPlayerId(p.id)}
+                color={filterPlayerId === p.id ? "primary" : "default"}
+                variant={filterPlayerId === p.id ? "filled" : "outlined"}
+                sx={{ flexShrink: 0 }}
+              />
             ))}
-          </Select>
+          </Box>
         )}
 
         {isLoading ? (
@@ -120,12 +134,27 @@ export default function HistoryPage() {
                     <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
                       <Stack spacing={0.75}>
                         <Stack direction="row" sx={{ alignItems: "center" }}>
-                          <Typography sx={{ flexGrow: 1, fontWeight: 900 }}>
-                            1위 {winnerName}{" "}
-                            <Typography component="span" color="text.secondary" sx={{ fontSize: 13 }}>
-                              {winner ? `${formatPoint(winnerScore, true)}pt` : "-"}
+                          <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexGrow: 1 }}>
+                            <Box
+                              sx={{
+                                bgcolor: "#fff8e1",
+                                border: "1.5px solid #b5892a",
+                                borderRadius: 0.75,
+                                px: 0.75,
+                                py: 0.1,
+                              }}
+                            >
+                              <Typography sx={{ fontSize: 10, fontWeight: 900, color: "#b5892a" }}>
+                                1위
+                              </Typography>
+                            </Box>
+                            <Typography sx={{ fontWeight: 900 }}>
+                              {winnerName}{" "}
+                              <Typography component="span" color="text.secondary" sx={{ fontSize: 13 }}>
+                                {winner ? `${formatPoint(winnerScore, true)}pt` : "-"}
+                              </Typography>
                             </Typography>
-                          </Typography>
+                          </Stack>
                           <Chip label={formatDate(game.played_at)} size="small" />
                         </Stack>
                         <Chip
@@ -134,9 +163,25 @@ export default function HistoryPage() {
                           sx={{ alignSelf: "flex-start" }}
                           variant="outlined"
                         />
-                        <Typography color="text.secondary" sx={{ fontSize: 12 }}>
-                          {sorted.map((r) => r.players?.name).join(" · ")}
+                        <Typography color="text.secondary" sx={{ fontSize: 12, fontWeight: 800 }}>
+                          {game.game_code}
                         </Typography>
+                        <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.25 }}>
+                          {sorted.map((r, i) => (
+                            <Typography
+                              key={r.player_id}
+                              component="span"
+                              sx={{ fontSize: 12, color: RANK_COLORS[r.rank - 1] ?? "text.secondary" }}
+                            >
+                              {i > 0 && (
+                                <Typography component="span" color="text.disabled" sx={{ fontSize: 12, mx: 0.25 }}>
+                                  ·
+                                </Typography>
+                              )}
+                              {r.players?.name}
+                            </Typography>
+                          ))}
+                        </Stack>
                       </Stack>
                     </CardContent>
                   </CardActionArea>

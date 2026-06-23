@@ -54,14 +54,82 @@ type RankEntry = {
 
 type FilterType = "alltime" | "monthly" | "quarterly";
 
-type PeriodBucket = {
+type HistoryPoint = {
   key: string;
   label: string;
-  from: Date;
-  to: Date;
+  rankMap: Map<string, number>;
 };
 
-const HISTORY_COLORS = ["#1976d2", "#d32f2f", "#2e7d32", "#ed6c02", "#7b1fa2"];
+const HISTORY_COLORS = ["#2d6a4f", "#c0392b", "#1565c0", "#ed6c02", "#7b1fa2"];
+
+const PODIUM_CONFIG = {
+  1: { bg: "#fff8e1", border: "#b5892a", color: "#7d5a00", label: "🥇", height: 88 },
+  2: { bg: "#f5f5f5", border: "#8c9aa3", color: "#4a6370", label: "🥈", height: 64 },
+  3: { bg: "#fbe9e7", border: "#8b6553", color: "#5d3c2e", label: "🥉", height: 48 },
+} as const;
+
+function PodiumCard({
+  entry,
+  rank,
+  avgScore,
+}: {
+  entry: RankEntry;
+  rank: 1 | 2 | 3;
+  avgScore: string;
+}) {
+  const cfg = PODIUM_CONFIG[rank];
+  return (
+    <Box
+      sx={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "flex-end",
+      }}
+    >
+      <Typography sx={{ fontSize: 18, mb: 0.5 }}>{cfg.label}</Typography>
+      <Avatar
+        sx={{
+          bgcolor: cfg.border,
+          width: 40,
+          height: 40,
+          fontSize: 16,
+          fontWeight: 900,
+          mb: 0.5,
+          border: `2px solid ${cfg.border}`,
+        }}
+      >
+        {entry.player.name[0]}
+      </Avatar>
+      <Typography
+        sx={{ fontSize: 12, fontWeight: 800, color: cfg.color, mb: 0.25, textAlign: "center" }}
+      >
+        {entry.player.name}
+      </Typography>
+      <Typography sx={{ fontSize: 10, color: "text.secondary", mb: 0.5 }}>
+        {avgScore}pt
+      </Typography>
+      <Box
+        sx={{
+          width: "100%",
+          height: cfg.height,
+          bgcolor: cfg.bg,
+          border: `2px solid ${cfg.border}`,
+          borderBottom: "none",
+          borderRadius: "6px 6px 0 0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Typography sx={{ fontSize: 22, fontWeight: 900, color: cfg.color }}>
+          {rank}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
 const now = new Date();
 const currentYear = now.getFullYear();
 const currentMonth = now.getMonth() + 1;
@@ -177,75 +245,66 @@ function filterByRange(
   });
 }
 
-function buildHistoryBuckets(type: FilterType, results: RawResult[]): PeriodBucket[] {
-  if (results.length === 0) return [];
-  const years = Array.from(
-    new Set(results.map((result) => new Date(result.games.played_at).getFullYear())),
-  ).sort((a, b) => a - b);
-
-  if (type === "alltime") {
-    return years.map((year) => ({
-      key: `${year}`,
-      label: `${year}`,
-      from: new Date(year, 0, 1),
-      to: new Date(year + 1, 0, 1),
-    }));
+function buildGameHistory(
+  results: RawResult[],
+  settings: ScoreMultiplierSettings,
+): HistoryPoint[] {
+  const gameMap = new Map<string, RawResult[]>();
+  for (const result of results) {
+    gameMap.set(result.game_id, [...(gameMap.get(result.game_id) ?? []), result]);
   }
 
-  if (type === "quarterly") {
-    return years.flatMap((year) =>
-      ([1, 2, 3, 4] as const).map((quarter) => {
-        const startMonth = (quarter - 1) * 3;
-        return {
-          key: `${year}-Q${quarter}`,
-          label: `${String(year).slice(2)}.${quarter}Q`,
-          from: new Date(year, startMonth, 1),
-          to: new Date(year, startMonth + 3, 1),
-        };
-      }),
-    );
-  }
+  const games = Array.from(gameMap.entries())
+    .map(([gameId, gameResults]) => ({
+      gameId,
+      results: gameResults,
+      playedAt: gameResults[0]?.games.played_at ?? "",
+    }))
+    .sort((a, b) => {
+      const dateDiff = new Date(a.playedAt).getTime() - new Date(b.playedAt).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return a.gameId.localeCompare(b.gameId);
+    });
 
-  return years.flatMap((year) =>
-    Array.from({ length: 12 }, (_, monthIndex) => ({
-      key: `${year}-${monthIndex + 1}`,
-      label: `${String(year).slice(2)}.${monthIndex + 1}`,
-      from: new Date(year, monthIndex, 1),
-      to: new Date(year, monthIndex + 1, 1),
-    })),
-  );
+  const cumulative: RawResult[] = [];
+
+  return games.map((game, index) => {
+    cumulative.push(...game.results);
+    const ranking = aggregate(cumulative, settings);
+    const dateLabel = game.playedAt
+      ? new Intl.DateTimeFormat("ko-KR", {
+          month: "numeric",
+          day: "numeric",
+        }).format(new Date(game.playedAt))
+      : `${index + 1}`;
+
+    return {
+      key: game.gameId,
+      label: `${index + 1}국\n${dateLabel}`,
+      rankMap: new Map(ranking.map((entry, rankIndex) => [entry.player.id, rankIndex + 1])),
+    };
+  });
 }
 
 function RankingHistory({
-  buckets,
+  points,
   entries,
-  results,
-  settings,
+  unitLabel,
 }: {
-  buckets: PeriodBucket[];
+  points: HistoryPoint[];
   entries: RankEntry[];
-  results: RawResult[];
-  settings: ScoreMultiplierSettings;
+  unitLabel: string;
 }) {
   const players = entries.slice(0, 5);
-  const visibleBuckets = buckets
-    .map((bucket) => {
-      const ranking = aggregate(filterByRange(results, bucket), settings);
-      return {
-        ...bucket,
-        rankMap: new Map(ranking.map((entry, index) => [entry.player.id, index + 1])),
-      };
-    })
-    .filter((bucket) => bucket.rankMap.size > 0)
-    .slice(-8);
+  const visiblePoints = points.slice(-8);
 
-  if (players.length === 0 || visibleBuckets.length < 2) {
+  if (players.length === 0 || visiblePoints.length < 2) {
     return (
       <Paper elevation={0} variant="outlined" sx={{ p: 2 }}>
         <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
           <ShowChartIcon color="disabled" fontSize="small" />
           <Typography color="text.secondary" sx={{ fontSize: 13 }}>
-            순위 히스토리를 표시하려면 기간 데이터가 더 필요합니다.
+            순위 히스토리를 표시하려면 대국 데이터가 더 필요합니다.
           </Typography>
         </Stack>
       </Paper>
@@ -257,15 +316,15 @@ function RankingHistory({
   const padding = { top: 16, right: 12, bottom: 34, left: 30 };
   const maxRank = Math.max(
     4,
-    ...visibleBuckets.flatMap((bucket) =>
-      players.map((entry) => bucket.rankMap.get(entry.player.id) ?? players.length + 1),
+    ...visiblePoints.flatMap((point) =>
+      players.map((entry) => point.rankMap.get(entry.player.id) ?? players.length + 1),
     ),
   );
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const xFor = (index: number) =>
     padding.left +
-    (visibleBuckets.length === 1 ? 0 : (chartWidth * index) / (visibleBuckets.length - 1));
+    (visiblePoints.length === 1 ? 0 : (chartWidth * index) / (visiblePoints.length - 1));
   const yFor = (rank: number) =>
     padding.top + ((rank - 1) / Math.max(1, maxRank - 1)) * chartHeight;
 
@@ -278,7 +337,7 @@ function RankingHistory({
             순위 히스토리
           </Typography>
           <Typography color="text.secondary" sx={{ fontSize: 11 }}>
-            최근 {visibleBuckets.length}개 기간
+            최근 {visiblePoints.length}개 {unitLabel}
           </Typography>
         </Stack>
 
@@ -312,48 +371,56 @@ function RankingHistory({
               </g>
             ))}
 
-            {visibleBuckets.map((bucket, index) => (
+            {visiblePoints.map((point, index) => (
               <text
-                key={bucket.key}
+                key={point.key}
                 fill="#777"
                 fontSize="10"
                 textAnchor="middle"
                 x={xFor(index)}
                 y={height - 10}
               >
-                {bucket.label}
+                {point.label.split("\n").map((line, lineIndex) => (
+                  <tspan
+                    key={line}
+                    dy={lineIndex === 0 ? 0 : 11}
+                    x={xFor(index)}
+                  >
+                    {line}
+                  </tspan>
+                ))}
               </text>
             ))}
 
             {players.map((entry, playerIndex) => {
-              const points = visibleBuckets
-                .map((bucket, bucketIndex) => {
-                  const rank = bucket.rankMap.get(entry.player.id);
+              const linePoints = visiblePoints
+                .map((point, pointIndex) => {
+                  const rank = point.rankMap.get(entry.player.id);
                   if (!rank) return null;
                   return {
-                    x: xFor(bucketIndex),
+                    x: xFor(pointIndex),
                     y: yFor(rank),
                     rank,
                   };
                 })
                 .filter((point): point is { x: number; y: number; rank: number } => !!point);
 
-              if (points.length === 0) return null;
+              if (linePoints.length === 0) return null;
               const color = HISTORY_COLORS[playerIndex % HISTORY_COLORS.length];
 
               return (
                 <g key={entry.player.id}>
-                  {points.length > 1 && (
+                  {linePoints.length > 1 && (
                     <polyline
                       fill="none"
-                      points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+                      points={linePoints.map((point) => `${point.x},${point.y}`).join(" ")}
                       stroke={color}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth="2.5"
                     />
                   )}
-                  {points.map((point, index) => (
+                  {linePoints.map((point, index) => (
                     <g key={`${entry.player.id}-${index}`}>
                       <circle cx={point.x} cy={point.y} fill={color} r="4" />
                       <text
@@ -430,9 +497,9 @@ export default function RankingsPage() {
     () => aggregate(filteredResults, settings),
     [filteredResults, settings],
   );
-  const historyBuckets = useMemo(
-    () => buildHistoryBuckets(filterType, allResults),
-    [allResults, filterType],
+  const historyPoints = useMemo(
+    () => buildGameHistory(filteredResults, settings),
+    [filteredResults, settings],
   );
 
   const selectedPeriodLabel =
@@ -521,6 +588,40 @@ export default function RankingsPage() {
           </Box>
         ) : (
           <Stack spacing={2}>
+            {/* 포디엄 */}
+            {currentRanking.length >= 3 && (
+              <Box>
+                <Stack
+                  direction="row"
+                  sx={{ alignItems: "flex-end", gap: 0.5, pb: 0 }}
+                >
+                  {/* 순서: 2위(왼쪽) - 1위(가운데) - 3위(오른쪽) */}
+                  <PodiumCard
+                    entry={currentRanking[1]}
+                    rank={2}
+                    avgScore={formatPoint(currentRanking[1].avgAppliedScore, true)}
+                  />
+                  <PodiumCard
+                    entry={currentRanking[0]}
+                    rank={1}
+                    avgScore={formatPoint(currentRanking[0].avgAppliedScore, true)}
+                  />
+                  <PodiumCard
+                    entry={currentRanking[2]}
+                    rank={3}
+                    avgScore={formatPoint(currentRanking[2].avgAppliedScore, true)}
+                  />
+                </Stack>
+                <Box
+                  sx={{
+                    height: 4,
+                    bgcolor: "divider",
+                    borderRadius: "0 0 6px 6px",
+                  }}
+                />
+              </Box>
+            )}
+
             <TableContainer
               component={Paper}
               elevation={0}
@@ -591,10 +692,9 @@ export default function RankingsPage() {
             </Paper>
 
             <RankingHistory
-              buckets={historyBuckets}
               entries={currentRanking}
-              results={allResults}
-              settings={settings}
+              points={historyPoints}
+              unitLabel="대국"
             />
           </Stack>
         )}

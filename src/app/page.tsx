@@ -23,6 +23,9 @@ import { calculateScore, formatPoint, getModeLabel } from "@/lib/scoring";
 import { supabase } from "@/lib/supabase";
 import type { GameWithResults } from "@/types";
 
+const RANK_BADGE_COLORS = ["#b5892a", "#8c9aa3", "#8b6553", "#9e9e9e"];
+const RANK_BADGE_BG = ["#fff8e1", "#f5f5f5", "#fbe9e7", "#f5f5f5"];
+
 export default function Home() {
   const { settings } = useScoreSettings();
   const [recentGames, setRecentGames] = useState<GameWithResults[]>([]);
@@ -81,7 +84,7 @@ export default function Home() {
           <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
             <Box sx={{ flexGrow: 1 }}>
               <Typography component="h1" sx={{ fontSize: 24, fontWeight: 900 }}>
-                마작 기록
+                🀄 마작 기록
               </Typography>
               <Typography color="text.secondary" sx={{ fontSize: 13 }}>
                 {todayLabel}
@@ -93,27 +96,41 @@ export default function Home() {
           {/* CTA */}
           <Box
             sx={{
-              bgcolor: "primary.main",
+              background: "linear-gradient(135deg, #1a5e3a 0%, #2d6a4f 60%, #3d8b6b 100%)",
               borderRadius: 2,
               color: "primary.contrastText",
               p: 2,
+              position: "relative",
+              overflow: "hidden",
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                inset: 0,
+                backgroundImage:
+                  "radial-gradient(circle at 15% 85%, rgba(255,255,255,0.07) 0%, transparent 45%), radial-gradient(circle at 85% 15%, rgba(255,255,255,0.07) 0%, transparent 45%)",
+                pointerEvents: "none",
+              },
             }}
           >
-            <Stack spacing={1.5}>
-              <Typography sx={{ fontSize: 14, fontWeight: 700, opacity: 0.86 }}>
+            <Stack spacing={1.5} sx={{ position: "relative" }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, opacity: 0.82 }}>
                 {lastGameLabel}
               </Typography>
               <Typography component="p" sx={{ fontSize: 22, fontWeight: 900 }}>
                 새 대국을 시작할 준비가 됐습니다
               </Typography>
               <Button
-                color="secondary"
                 component={Link}
                 fullWidth
                 href="/games/new"
                 size="large"
                 startIcon={<AddIcon />}
                 variant="contained"
+                sx={{
+                  bgcolor: "#b5892a",
+                  color: "#fff",
+                  "&:hover": { bgcolor: "#9a7222" },
+                }}
               >
                 대국 시작
               </Button>
@@ -183,12 +200,27 @@ export default function Home() {
                         <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
                           <Stack spacing={0.75}>
                             <Stack direction="row" sx={{ alignItems: "center" }}>
-                              <Typography sx={{ flexGrow: 1, fontWeight: 900 }}>
-                                1위 {winner?.players?.name ?? "-"}{" "}
-                                <Typography component="span" color="text.secondary" sx={{ fontSize: 13 }}>
-                                  {winner ? `${formatPoint(winnerScore, true)}pt` : "-"}
+                              <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexGrow: 1 }}>
+                                <Box
+                                  sx={{
+                                    bgcolor: RANK_BADGE_BG[0],
+                                    border: `1.5px solid ${RANK_BADGE_COLORS[0]}`,
+                                    borderRadius: 0.75,
+                                    px: 0.75,
+                                    py: 0.1,
+                                  }}
+                                >
+                                  <Typography sx={{ fontSize: 10, fontWeight: 900, color: RANK_BADGE_COLORS[0] }}>
+                                    1위
+                                  </Typography>
+                                </Box>
+                                <Typography sx={{ fontWeight: 900 }}>
+                                  {winner?.players?.name ?? "-"}{" "}
+                                  <Typography component="span" color="text.secondary" sx={{ fontSize: 13 }}>
+                                    {winner ? `${formatPoint(winnerScore, true)}pt` : "-"}
+                                  </Typography>
                                 </Typography>
-                              </Typography>
+                              </Stack>
                               <Chip
                                 label={new Intl.DateTimeFormat("ko-KR", {
                                   month: "numeric",
@@ -200,9 +232,25 @@ export default function Home() {
                             <Typography color="text.secondary" sx={{ fontSize: 13 }}>
                               {getModeLabel(game.mode, settings)}
                             </Typography>
-                            <Typography color="text.secondary" sx={{ fontSize: 12 }}>
-                              {sorted.map((r) => r.players?.name).join(" · ")}
+                            <Typography color="text.secondary" sx={{ fontSize: 12, fontWeight: 800 }}>
+                              {game.game_code}
                             </Typography>
+                            <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.25 }}>
+                              {sorted.map((r, i) => (
+                                <Typography
+                                  key={r.player_id}
+                                  component="span"
+                                  sx={{ fontSize: 12, color: RANK_BADGE_COLORS[r.rank - 1] ?? "text.secondary" }}
+                                >
+                                  {i > 0 && (
+                                    <Typography component="span" color="text.disabled" sx={{ fontSize: 12, mx: 0.25 }}>
+                                      ·
+                                    </Typography>
+                                  )}
+                                  {r.players?.name}
+                                </Typography>
+                              ))}
+                            </Stack>
                           </Stack>
                         </CardContent>
                       </CardActionArea>

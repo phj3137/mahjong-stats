@@ -6,13 +6,13 @@ export const theme = createTheme({
   },
   palette: {
     primary: {
-      main: "#11615f",
+      main: "#2d6a4f",
     },
     secondary: {
-      main: "#d65f45",
+      main: "#c0392b",
     },
     background: {
-      default: "#f6f7f4",
+      default: "#f5f0e8",
       paper: "#ffffff",
     },
     text: {
@@ -21,10 +21,10 @@ export const theme = createTheme({
     },
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: 6,
   },
   typography: {
-    fontFamily: "Arial, Helvetica, sans-serif",
+    fontFamily: "'Noto Sans KR', Arial, Helvetica, sans-serif",
     h1: {
       fontSize: "2.5rem",
       fontWeight: 700,
@@ -49,14 +49,15 @@ export const theme = createTheme({
       },
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: 6,
         },
       },
     },
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: 6,
+          backgroundColor: "#fffef5",
         },
       },
     },
