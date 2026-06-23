@@ -3,8 +3,8 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mahjong Stats",
-  description: "Mahjong match records and statistics",
+  title: "flagon mindsports gallery",
+  description: "flagon mindsports gallery",
 };
 
 export default function RootLayout({

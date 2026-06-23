@@ -84,7 +84,7 @@ export default function Home() {
           <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
             <Box sx={{ flexGrow: 1 }}>
               <Typography component="h1" sx={{ fontSize: 24, fontWeight: 900 }}>
-                🀄 마작 기록
+                flagon mindsports gallery
               </Typography>
               <Typography color="text.secondary" sx={{ fontSize: 13 }}>
                 {todayLabel}
