@@ -42,6 +42,7 @@ type RankEntry = {
   totalJunScore: number;
   totalAppliedScore: number;
   totalUma: number;
+  avgRawScore: number;
   avgJunScore: number;
   avgAppliedScore: number;
   avgUma: number;
@@ -130,6 +131,120 @@ function PodiumCard({
     </Box>
   );
 }
+
+// 반영평균 점수 비교 bar chart (diverging, center = 0)
+function StatsBarChart({ entries }: { entries: RankEntry[] }) {
+  const top = entries.slice(0, 5);
+  if (top.length < 2) return null;
+
+  const maxAbs = Math.max(...top.map((e) => Math.abs(e.avgAppliedScore)), 0.1);
+  const labelW = 64;
+  const barMaxW = 110;
+  const valueW = 52;
+  const barH = 16;
+  const gap = 10;
+  const svgW = labelW + barMaxW * 2 + valueW;
+  const svgH = top.length * (barH + gap) + 20;
+  const centerX = labelW + barMaxW;
+
+  return (
+    <Paper elevation={0} variant="outlined" sx={{ p: 1.5 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, mb: 1 }}>
+        <ShowChartIcon color="primary" fontSize="small" />
+        <Typography sx={{ fontSize: 14, fontWeight: 800 }}>반영평균 비교</Typography>
+      </Stack>
+      <Box sx={{ overflowX: "auto" }}>
+        <svg
+          aria-label="반영평균 비교 차트"
+          height={svgH}
+          role="img"
+          viewBox={`0 0 ${svgW} ${svgH}`}
+          width="100%"
+        >
+          {/* center line */}
+          <line
+            stroke="#ccc"
+            strokeDasharray="3 3"
+            x1={centerX}
+            x2={centerX}
+            y1={0}
+            y2={svgH}
+          />
+
+          {top.map((entry, i) => {
+            const y = i * (barH + gap) + 10;
+            const score = entry.avgAppliedScore;
+            const w = (Math.abs(score) / maxAbs) * barMaxW;
+            const isPos = score >= 0;
+            const barX = isPos ? centerX : centerX - w;
+            const color = isPos ? "#2d6a4f" : "#c0392b";
+
+            return (
+              <g key={entry.player.id}>
+                {/* player name */}
+                <text
+                  fill="#555"
+                  fontSize="11"
+                  textAnchor="end"
+                  x={labelW - 6}
+                  y={y + barH - 3}
+                >
+                  {entry.player.name.length > 5
+                    ? entry.player.name.slice(0, 5) + "…"
+                    : entry.player.name}
+                </text>
+
+                {/* bar */}
+                <rect
+                  fill={color}
+                  fillOpacity="0.15"
+                  height={barH}
+                  rx={3}
+                  width={Math.max(w, 2)}
+                  x={barX}
+                  y={y}
+                />
+                <rect
+                  fill={color}
+                  height={barH}
+                  rx={3}
+                  width={Math.max(w * 0.4, 2)}
+                  x={barX}
+                  y={y}
+                />
+
+                {/* value */}
+                <text
+                  fill={color}
+                  fontSize="10"
+                  fontWeight="700"
+                  textAnchor="start"
+                  x={centerX + barMaxW + 4}
+                  y={y + barH - 3}
+                >
+                  {formatPoint(score, true)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </Box>
+
+      <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75, mt: 0.5 }}>
+        {top.map((entry, index) => (
+          <Chip
+            key={entry.player.id}
+            label={`${index + 1}. ${entry.player.name}`}
+            size="small"
+            sx={{ fontSize: 10 }}
+            variant="outlined"
+          />
+        ))}
+      </Stack>
+    </Paper>
+  );
+}
+
 const now = new Date();
 const currentYear = now.getFullYear();
 const currentMonth = now.getMonth() + 1;
@@ -148,7 +263,6 @@ function getDateRange(
       to: new Date(year, month, 1),
     };
   }
-
   const startMonth = (quarter - 1) * 3;
   return {
     from: new Date(year, startMonth, 1),
@@ -187,6 +301,7 @@ function aggregate(
         totalJunScore: 0,
         totalAppliedScore: 0,
         totalUma: 0,
+        avgRawScore: 0,
         avgJunScore: 0,
         avgAppliedScore: 0,
         avgUma: 0,
@@ -217,6 +332,7 @@ function aggregate(
   return Array.from(map.values())
     .map((entry) => ({
       ...entry,
+      avgRawScore: entry.totalRawScore / entry.gameCount,
       avgJunScore: entry.totalJunScore / entry.gameCount,
       avgAppliedScore: entry.totalAppliedScore / entry.gameCount,
       avgUma: entry.totalUma / entry.gameCount,
@@ -267,8 +383,9 @@ function buildGameHistory(
     });
 
   const cumulative: RawResult[] = [];
+  const allPoints: HistoryPoint[] = [];
 
-  return games.map((game, index) => {
+  for (const [index, game] of games.entries()) {
     cumulative.push(...game.results);
     const ranking = aggregate(cumulative, settings);
     const dateLabel = game.playedAt
@@ -278,11 +395,21 @@ function buildGameHistory(
         }).format(new Date(game.playedAt))
       : `${index + 1}`;
 
-    return {
+    allPoints.push({
       key: game.gameId,
       label: `${index + 1}국\n${dateLabel}`,
       rankMap: new Map(ranking.map((entry, rankIndex) => [entry.player.id, rankIndex + 1])),
-    };
+    });
+  }
+
+  // 순위 변동이 있을 때만 기록
+  return allPoints.filter((point, index) => {
+    if (index === 0) return true;
+    const prev = allPoints[index - 1];
+    for (const [playerId, rank] of point.rankMap) {
+      if (prev.rankMap.get(playerId) !== rank) return true;
+    }
+    return false;
   });
 }
 
@@ -337,7 +464,7 @@ function RankingHistory({
             순위 히스토리
           </Typography>
           <Typography color="text.secondary" sx={{ fontSize: 11 }}>
-            최근 {visiblePoints.length}개 {unitLabel}
+            변동 {visiblePoints.length}개 {unitLabel}
           </Typography>
         </Stack>
 
@@ -397,11 +524,7 @@ function RankingHistory({
                 .map((point, pointIndex) => {
                   const rank = point.rankMap.get(entry.player.id);
                   if (!rank) return null;
-                  return {
-                    x: xFor(pointIndex),
-                    y: yFor(rank),
-                    rank,
-                  };
+                  return { x: xFor(pointIndex), y: yFor(rank), rank };
                 })
                 .filter((point): point is { x: number; y: number; rank: number } => !!point);
 
@@ -465,7 +588,8 @@ export default function RankingsPage() {
   const [allResults, setAllResults] = useState<RawResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [filterType, setFilterType] = useState<FilterType>("monthly");
+  // 기본 탭: 통산
+  const [filterType, setFilterType] = useState<FilterType>("alltime");
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
   const [quarter, setQuarter] = useState<1 | 2 | 3 | 4>(currentQuarter);
@@ -488,6 +612,47 @@ export default function RankingsPage() {
     yearSet.add(currentYear);
     return Array.from(yearSet).sort((a, b) => b - a);
   }, [allResults]);
+
+  // 기록이 있는 월만 표시
+  const availableMonths = useMemo(() => {
+    const set = new Set<number>();
+    for (const result of allResults) {
+      const d = new Date(result.games.played_at);
+      if (d.getFullYear() === year) set.add(d.getMonth() + 1);
+    }
+    return Array.from(set).sort((a, b) => a - b);
+  }, [allResults, year]);
+
+  // 기록이 있는 분기만 표시
+  const availableQuarters = useMemo(() => {
+    const set = new Set<1 | 2 | 3 | 4>();
+    for (const m of availableMonths) {
+      set.add(Math.ceil(m / 3) as 1 | 2 | 3 | 4);
+    }
+    return Array.from(set).sort();
+  }, [availableMonths]);
+
+  // 연도 변경 시 유효한 월/분기로 자동 조정
+  const handleYearChange = (newYear: number) => {
+    setYear(newYear);
+    const months = Array.from(
+      new Set(
+        allResults
+          .filter((r) => new Date(r.games.played_at).getFullYear() === newYear)
+          .map((r) => new Date(r.games.played_at).getMonth() + 1),
+      ),
+    ).sort((a, b) => b - a);
+
+    if (months.length > 0 && !months.includes(month)) {
+      setMonth(months[0]);
+    }
+    const quarters = Array.from(
+      new Set(months.map((m) => Math.ceil(m / 3) as 1 | 2 | 3 | 4)),
+    ).sort((a, b) => b - a);
+    if (quarters.length > 0 && !quarters.includes(quarter)) {
+      setQuarter(quarters[0]);
+    }
+  };
 
   const filteredResults = useMemo(() => {
     return filterByRange(allResults, getDateRange(filterType, year, month, quarter));
@@ -539,7 +704,7 @@ export default function RankingsPage() {
               fullWidth
               size="small"
               value={year}
-              onChange={(event) => setYear(Number(event.target.value))}
+              onChange={(e) => handleYearChange(Number(e.target.value))}
             >
               {years.map((item) => (
                 <MenuItem key={item} value={item}>
@@ -551,27 +716,39 @@ export default function RankingsPage() {
               <Select
                 fullWidth
                 size="small"
-                value={month}
-                onChange={(event) => setMonth(Number(event.target.value))}
+                value={availableMonths.includes(month) ? month : (availableMonths[availableMonths.length - 1] ?? month)}
+                onChange={(e) => setMonth(Number(e.target.value))}
               >
-                {Array.from({ length: 12 }, (_, index) => index + 1).map((item) => (
-                  <MenuItem key={item} value={item}>
-                    {item}월
+                {availableMonths.length === 0 ? (
+                  <MenuItem disabled value={month}>
+                    기록 없음
                   </MenuItem>
-                ))}
+                ) : (
+                  availableMonths.map((item) => (
+                    <MenuItem key={item} value={item}>
+                      {item}월
+                    </MenuItem>
+                  ))
+                )}
               </Select>
             ) : (
               <Select
                 fullWidth
                 size="small"
-                value={quarter}
-                onChange={(event) => setQuarter(Number(event.target.value) as 1 | 2 | 3 | 4)}
+                value={availableQuarters.includes(quarter) ? quarter : (availableQuarters[availableQuarters.length - 1] ?? quarter)}
+                onChange={(e) => setQuarter(Number(e.target.value) as 1 | 2 | 3 | 4)}
               >
-                {([1, 2, 3, 4] as const).map((item) => (
-                  <MenuItem key={item} value={item}>
-                    {item}분기
+                {availableQuarters.length === 0 ? (
+                  <MenuItem disabled value={quarter}>
+                    기록 없음
                   </MenuItem>
-                ))}
+                ) : (
+                  availableQuarters.map((item) => (
+                    <MenuItem key={item} value={item}>
+                      {item}분기
+                    </MenuItem>
+                  ))
+                )}
               </Select>
             )}
           </Stack>
@@ -595,7 +772,6 @@ export default function RankingsPage() {
                   direction="row"
                   sx={{ alignItems: "flex-end", gap: 0.5, pb: 0 }}
                 >
-                  {/* 순서: 2위(왼쪽) - 1위(가운데) - 3위(오른쪽) */}
                   <PodiumCard
                     entry={currentRanking[1]}
                     rank={2}
@@ -612,15 +788,12 @@ export default function RankingsPage() {
                     avgScore={formatPoint(currentRanking[2].avgAppliedScore, true)}
                   />
                 </Stack>
-                <Box
-                  sx={{
-                    height: 4,
-                    bgcolor: "divider",
-                    borderRadius: "0 0 6px 6px",
-                  }}
-                />
+                <Box sx={{ height: 4, bgcolor: "divider", borderRadius: "0 0 6px 6px" }} />
               </Box>
             )}
+
+            {/* 반영평균 비교 차트 */}
+            <StatsBarChart entries={currentRanking} />
 
             <TableContainer
               component={Paper}
@@ -667,7 +840,9 @@ export default function RankingsPage() {
                       </TableCell>
                       <TableCell align="right">{entry.gameCount}</TableCell>
                       <TableCell align="right">{formatPoint(entry.totalScore, true)}</TableCell>
-                      <TableCell align="right">{formatPoint(entry.avgJunScore, true)}</TableCell>
+                      <TableCell align="right">
+                        {Math.round(entry.avgRawScore).toLocaleString()}
+                      </TableCell>
                       <TableCell align="right">{formatPoint(entry.avgAppliedScore, true)}</TableCell>
                       <TableCell align="right">{formatPoint(entry.avgUma, true)}</TableCell>
                       <TableCell align="right">{entry.avgRank.toFixed(2)}</TableCell>
@@ -686,7 +861,7 @@ export default function RankingsPage() {
 
             <Paper elevation={0} sx={{ bgcolor: "background.paper", p: 1.5 }}>
               <Typography color="text.secondary" sx={{ fontSize: 11, lineHeight: 1.6 }}>
-                반영평균 기준 정렬 · 평균순점은 (점수 - 30,000) / 1,000 · 우마는 1위
+                반영평균 기준 정렬 · 평균순점은 raw 점수 평균(e.g. 36,000) · 우마는 1위
                 +30 / 2위 +10 / 3위 -10 / 4위 -30 · 오카는 1위 +20 기준
               </Typography>
             </Paper>

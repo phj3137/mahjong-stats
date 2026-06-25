@@ -17,15 +17,15 @@ import {
   Fab,
   IconButton,
   List,
-  ListItem,
   ListItemAvatar,
-  ListItemSecondaryAction,
+  ListItemButton,
   ListItemText,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import BottomNav from "@/components/layout/BottomNav";
 import { supabase } from "@/lib/supabase";
 import type { Player } from "@/types";
@@ -33,6 +33,7 @@ import type { Player } from "@/types";
 type PlayerWithCount = Player & { gameCount: number };
 
 export default function PlayersPage() {
+  const router = useRouter();
   const [players, setPlayers] = useState<PlayerWithCount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -77,10 +78,16 @@ export default function PlayersPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (player: Player) => {
+  const openEdit = (e: React.MouseEvent, player: Player) => {
+    e.stopPropagation();
     setEditingPlayer(player);
     setNameInput(player.name);
     setDialogOpen(true);
+  };
+
+  const openDelete = (e: React.MouseEvent, player: PlayerWithCount) => {
+    e.stopPropagation();
+    setDeleteTarget(player);
   };
 
   const closeDialog = () => {
@@ -145,10 +152,10 @@ export default function PlayersPage() {
         ) : (
           <List disablePadding>
             {players.map((player) => (
-              <ListItem
+              <ListItemButton
                 key={player.id}
-                disablePadding
-                sx={{ py: 0.5 }}
+                sx={{ py: 0.5, borderRadius: 1 }}
+                onClick={() => router.push(`/players/${player.id}`)}
               >
                 <ListItemAvatar>
                   <Avatar sx={{ bgcolor: "primary.main" }}>
@@ -159,26 +166,22 @@ export default function PlayersPage() {
                   primary={player.name}
                   secondary={`대국 ${player.gameCount}회`}
                 />
-                <ListItemSecondaryAction>
-                  <IconButton
-                    aria-label="수정"
-                    edge="end"
-                    size="small"
-                    onClick={() => openEdit(player)}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    aria-label="삭제"
-                    edge="end"
-                    size="small"
-                    sx={{ ml: 0.5 }}
-                    onClick={() => setDeleteTarget(player)}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </ListItemSecondaryAction>
-              </ListItem>
+                <IconButton
+                  aria-label="수정"
+                  size="small"
+                  onClick={(e) => openEdit(e, player)}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  aria-label="삭제"
+                  size="small"
+                  sx={{ ml: 0.5 }}
+                  onClick={(e) => openDelete(e, player)}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </ListItemButton>
             ))}
           </List>
         )}

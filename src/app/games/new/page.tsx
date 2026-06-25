@@ -1,12 +1,16 @@
 "use client";
 
+import AddIcon from "@mui/icons-material/Add";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import {
   Alert,
+  Autocomplete,
   Avatar,
   Box,
   Button,
   CircularProgress,
+  Divider,
   InputAdornment,
   MenuItem,
   Paper,
@@ -70,18 +74,19 @@ function SeatBox({
   players,
   onAssign,
   dealerId,
+  readOnly,
 }: {
   seat: Seat;
   seats: Record<string, Seat>;
   players: Player[];
   onAssign: (seat: Seat, playerId: string) => void;
   dealerId: string;
+  readOnly?: boolean;
 }) {
   const assignedPlayerId = Object.entries(seats).find(([, s]) => s === seat)?.[0] ?? "";
   const assignedPlayer = players.find((p) => p.id === assignedPlayerId);
   const isDealer = assignedPlayerId !== "" && assignedPlayerId === dealerId;
 
-  // 다른 자리에 이미 배정된 플레이어
   const takenByOtherSeat = new Set(
     Object.entries(seats)
       .filter(([, s]) => s !== seat)
@@ -132,39 +137,253 @@ function SeatBox({
           </Typography>
           {isDealer && (
             <Typography sx={{ fontSize: 9, color: "#b5892a", fontWeight: 800 }}>
-              오야
+              기가
             </Typography>
           )}
         </Box>
       ) : (
         <Box sx={{ mb: 0.75, height: 54, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Typography color="text.disabled" sx={{ fontSize: 11 }}>
-            미배정
+            {readOnly ? "기가 미선택" : "미배정"}
           </Typography>
         </Box>
       )}
 
-      <Select
-        displayEmpty
-        size="small"
-        value={assignedPlayerId}
-        onChange={(e) => onAssign(seat, e.target.value)}
-        sx={{
-          fontSize: 11,
-          width: "100%",
-          "& .MuiSelect-select": { py: 0.5, px: 1 },
-        }}
-      >
-        <MenuItem value="">
-          <Typography sx={{ fontSize: 11, color: "text.disabled" }}>선택</Typography>
-        </MenuItem>
-        {players.map((p) => (
-          <MenuItem key={p.id} value={p.id} disabled={takenByOtherSeat.has(p.id)}>
-            <Typography sx={{ fontSize: 12 }}>{p.name}</Typography>
+      {readOnly ? (
+        <Typography sx={{ fontSize: 10, color: "#b5892a", fontWeight: 700, py: 0.5 }}>
+          기가 고정
+        </Typography>
+      ) : (
+        <Select
+          displayEmpty
+          size="small"
+          value={assignedPlayerId}
+          onChange={(e) => onAssign(seat, e.target.value)}
+          sx={{
+            fontSize: 11,
+            width: "100%",
+            "& .MuiSelect-select": { py: 0.5, px: 1 },
+          }}
+        >
+          <MenuItem value="">
+            <Typography sx={{ fontSize: 11, color: "text.disabled" }}>선택</Typography>
           </MenuItem>
-        ))}
-      </Select>
+          {players.map((p) => (
+            <MenuItem key={p.id} value={p.id} disabled={takenByOtherSeat.has(p.id)}>
+              <Typography sx={{ fontSize: 12 }}>{p.name}</Typography>
+            </MenuItem>
+          ))}
+        </Select>
+      )}
     </Paper>
+  );
+}
+
+// 대국 1회 결과 입력 카드
+function RoundCard({
+  roundIndex,
+  totalRounds,
+  scores,
+  selectedPlayers,
+  dealerId,
+  seats,
+  mode,
+  onScoreChange,
+  onRemove,
+}: {
+  roundIndex: number;
+  totalRounds: number;
+  scores: Record<string, string>;
+  selectedPlayers: Player[];
+  dealerId: string;
+  seats: Record<string, Seat>;
+  mode: GameMode;
+  onScoreChange: (playerId: string, value: string) => void;
+  onRemove: () => void;
+}) {
+  const { settings } = useScoreSettings();
+
+  const computedRanks = (): Record<string, number> => {
+    const entries = selectedPlayers
+      .map((p) => ({ id: p.id, score: parseInt(scores[p.id] ?? "", 10) }))
+      .filter((e) => !isNaN(e.score))
+      .sort((a, b) => b.score - a.score);
+    const ranks: Record<string, number> = {};
+    entries.forEach((e, i) => { ranks[e.id] = i + 1; });
+    return ranks;
+  };
+
+  const ranks = computedRanks();
+  const RANK_COLORS = ["#b5892a", "#8c9aa3", "#8b6553", "#9e9e9e"];
+
+  const isValid =
+    selectedPlayers.every((p) => scores[p.id] !== undefined && scores[p.id] !== "") &&
+    Object.keys(ranks).length === 4;
+
+  const totalScore = selectedPlayers.reduce(
+    (sum, p) => sum + (parseInt(scores[p.id] ?? "0", 10) || 0),
+    0,
+  );
+
+  const scoreRows = isValid
+    ? selectedPlayers
+        .map((p) => ({
+          player: p,
+          ...calculateScore(parseInt(scores[p.id], 10), ranks[p.id], mode, settings),
+        }))
+        .sort((a, b) => a.rank - b.rank)
+    : [];
+
+  return (
+    <Box>
+      <Stack direction="row" sx={{ alignItems: "center", mb: 1.5 }}>
+        <Typography sx={{ fontWeight: 700, flex: 1 }}>
+          대국 {roundIndex + 1}
+        </Typography>
+        {totalRounds > 1 && (
+          <Button
+            color="error"
+            size="small"
+            startIcon={<DeleteOutlineIcon />}
+            variant="text"
+            onClick={onRemove}
+          >
+            삭제
+          </Button>
+        )}
+      </Stack>
+
+      <Stack spacing={1.5}>
+        {selectedPlayers.map((p) => {
+          const rank = ranks[p.id];
+          return (
+            <Stack key={p.id} direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
+              <Avatar sx={{ bgcolor: "primary.main", flexShrink: 0, width: 32, height: 32, fontSize: 14 }}>
+                {p.name[0]}
+              </Avatar>
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                  {p.name}
+                  {p.id === dealerId && (
+                    <Typography component="span" sx={{ fontSize: 11, ml: 0.5, color: "#b5892a", fontWeight: 800 }}>
+                      (기가)
+                    </Typography>
+                  )}
+                </Typography>
+                <Typography color="text.secondary" sx={{ fontSize: 11 }}>
+                  {seats[p.id]}
+                </Typography>
+              </Box>
+              <TextField
+                size="small"
+                sx={{ width: 120 }}
+                type="number"
+                value={scores[p.id] ?? ""}
+                slotProps={{
+                  input: {
+                    endAdornment: <InputAdornment position="end">점</InputAdornment>,
+                  },
+                }}
+                onChange={(e) => onScoreChange(p.id, e.target.value)}
+              />
+              {rank && (
+                <Box
+                  sx={{
+                    minWidth: 36,
+                    textAlign: "center",
+                    bgcolor: rank <= 3 ? `${RANK_COLORS[rank - 1]}22` : "action.hover",
+                    border: `1.5px solid ${RANK_COLORS[rank - 1] ?? "#9e9e9e"}`,
+                    borderRadius: 1,
+                    py: 0.25,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: 14,
+                      fontWeight: 900,
+                      color: RANK_COLORS[rank - 1] ?? "text.secondary",
+                    }}
+                  >
+                    {rank}위
+                  </Typography>
+                </Box>
+              )}
+            </Stack>
+          );
+        })}
+      </Stack>
+
+      {isValid && (
+        <Stack spacing={1} sx={{ mt: 1.5 }}>
+          {totalScore !== TOTAL_RAW_SCORE && (
+            <Alert severity="error" variant="outlined" sx={{ py: 0.5 }}>
+              합계 {totalScore.toLocaleString()}점 (기준: {TOTAL_RAW_SCORE.toLocaleString()}점)
+            </Alert>
+          )}
+
+          {totalScore === TOTAL_RAW_SCORE && (
+            <>
+              <Paper elevation={0} sx={{ bgcolor: "background.paper", border: 1, borderColor: "primary.main", p: 1.25 }}>
+                <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
+                  <CheckCircleIcon color="primary" fontSize="small" />
+                  <Typography color="primary" sx={{ fontSize: 12, fontWeight: 700 }}>
+                    합계 {TOTAL_RAW_SCORE.toLocaleString()}점 확인
+                  </Typography>
+                </Stack>
+              </Paper>
+
+              <TableContainer component={Paper} elevation={0} variant="outlined">
+                <Table size="small" sx={{ minWidth: 520 }}>
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: "#2d6a4f" }}>
+                      {["이름", "점수", "순위", "우마", "오카", "최종", "반영"].map((h) => (
+                        <TableCell
+                          key={h}
+                          align={h === "이름" ? "left" : "right"}
+                          sx={{ color: "#fff", fontWeight: 700, py: 0.75 }}
+                        >
+                          {h}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {scoreRows.map((row) => (
+                      <TableRow
+                        key={row.player.id}
+                        sx={{ bgcolor: row.rank === 1 ? "#fff8e1" : "inherit" }}
+                      >
+                        <TableCell sx={{ fontWeight: row.rank === 1 ? 800 : 400 }}>
+                          {row.player.name}
+                        </TableCell>
+                        <TableCell align="right">{row.rawScore.toLocaleString()}</TableCell>
+                        <TableCell align="right">{row.rank}</TableCell>
+                        <TableCell
+                          align="right"
+                          sx={{ color: row.uma >= 0 ? "#2d6a4f" : "#c0392b", fontWeight: 700 }}
+                        >
+                          {formatPoint(row.uma, true)}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          sx={{ color: row.oka >= 0 ? "#2d6a4f" : "#c0392b", fontWeight: 700 }}
+                        >
+                          {formatPoint(row.oka, true)}
+                        </TableCell>
+                        <TableCell align="right">{formatPoint(row.finalScore, true)}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800 }}>
+                          {formatPoint(row.appliedScore, true)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          )}
+        </Stack>
+      )}
+    </Box>
   );
 }
 
@@ -177,7 +396,7 @@ export default function NewGamePage() {
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(true);
 
   // Step 1
-  const [gameType, setGameType] = useState<"online" | "offline">("online");
+  const [gameType, setGameType] = useState<"online" | "offline" | null>(null);
   const [playedAt, setPlayedAt] = useState(
     () => new Date().toLocaleDateString("sv-SE"),
   );
@@ -188,8 +407,8 @@ export default function NewGamePage() {
   const [dealerId, setDealerId] = useState("");
   const [seats, setSeats] = useState<Record<string, Seat>>({});
 
-  // Step 3
-  const [scores, setScores] = useState<Record<string, string>>({});
+  // Step 3: multiple rounds
+  const [rounds, setRounds] = useState<Array<Record<string, string>>>([{}]);
   const [isSaving, setIsSaving] = useState(false);
   const [scoreErrorOpen, setScoreErrorOpen] = useState(false);
 
@@ -203,6 +422,23 @@ export default function NewGamePage() {
         setIsLoadingPlayers(false);
       });
   }, []);
+
+  // 기가(딜러)가 바뀌면 동 자리 자동 배정
+  useEffect(() => {
+    if (!dealerId) return;
+    setSeats((prev) => {
+      const next = { ...prev };
+      // 동 자리에 있던 플레이어 제거
+      for (const pid of Object.keys(next)) {
+        if (next[pid] === "동") delete next[pid];
+      }
+      // 기가의 기존 자리 제거
+      delete next[dealerId];
+      // 기가를 동으로 배정
+      next[dealerId] = "동";
+      return next;
+    });
+  }, [dealerId]);
 
   const mode: GameMode =
     gameType === "offline"
@@ -230,22 +466,20 @@ export default function NewGamePage() {
     });
   };
 
-  // 나침반 자리 배정: 기존 배정자 제거 후 새 플레이어 배정
   const assignSeat = (seat: Seat, playerId: string) => {
+    if (seat === "동") return; // 동은 기가 전용 (자동 배정)
     setSeats((prev) => {
       const next = { ...prev };
-      // 해당 자리 기존 배정 제거
       for (const [pid, s] of Object.entries(next)) {
         if (s === seat) delete next[pid];
       }
-      // 해당 플레이어의 기존 자리 제거 후 재배정
       if (playerId && next[playerId]) delete next[playerId];
       if (playerId) next[playerId] = seat;
       return next;
     });
   };
 
-  const isStep1Valid = playedAt !== "" && registrantId !== "";
+  const isStep1Valid = playedAt !== "" && registrantId !== "" && gameType !== null;
 
   const isStep2Valid =
     selectedIds.length === 4 &&
@@ -253,76 +487,79 @@ export default function NewGamePage() {
     Object.keys(seats).length === 4 &&
     new Set(Object.values(seats)).size === 4;
 
-  const computedRanks = useCallback((): Record<string, number> => {
+  const isRoundValid = useCallback(
+    (roundScores: Record<string, string>) => {
+      const values = selectedPlayers.map((p) =>
+        parseInt(roundScores[p.id] ?? "", 10),
+      );
+      if (values.some(isNaN)) return false;
+      const total = values.reduce((a, b) => a + b, 0);
+      return total === TOTAL_RAW_SCORE;
+    },
+    [selectedPlayers],
+  );
+
+  const isStep3Valid = rounds.length > 0 && rounds.every(isRoundValid);
+
+  const computeRanks = (roundScores: Record<string, string>): Record<string, number> => {
     const entries = selectedPlayers
-      .map((p) => ({ id: p.id, score: parseInt(scores[p.id] ?? "", 10) }))
+      .map((p) => ({ id: p.id, score: parseInt(roundScores[p.id] ?? "", 10) }))
       .filter((e) => !isNaN(e.score))
       .sort((a, b) => b.score - a.score);
-
     const ranks: Record<string, number> = {};
-    entries.forEach((e, i) => {
-      ranks[e.id] = i + 1;
-    });
+    entries.forEach((e, i) => { ranks[e.id] = i + 1; });
     return ranks;
-  }, [selectedPlayers, scores]);
+  };
 
-  const isStep3Valid =
-    selectedPlayers.every((p) => scores[p.id] !== undefined && scores[p.id] !== "") &&
-    Object.keys(computedRanks()).length === 4;
+  const updateRoundScore = (roundIndex: number, playerId: string, value: string) => {
+    setRounds((prev) => {
+      const next = [...prev];
+      next[roundIndex] = { ...next[roundIndex], [playerId]: value };
+      return next;
+    });
+  };
 
-  const scoreRows = isStep3Valid
-    ? selectedPlayers
-        .map((p) => ({
-          player: p,
-          ...calculateScore(parseInt(scores[p.id], 10), computedRanks()[p.id], mode, settings),
-        }))
-        .sort((a, b) => a.rank - b.rank)
-    : [];
+  const addRound = () => setRounds((prev) => [...prev, {}]);
+
+  const removeRound = (index: number) =>
+    setRounds((prev) => prev.filter((_, i) => i !== index));
 
   const handleSave = async () => {
     if (!isStep3Valid) return;
 
-    const totalScore = selectedPlayers.reduce(
-      (sum, p) => sum + parseInt(scores[p.id] ?? "0", 10),
-      0,
-    );
-
-    if (totalScore !== TOTAL_RAW_SCORE) {
-      setScoreErrorOpen(true);
-      return;
-    }
-
     setIsSaving(true);
 
-    const ranks = computedRanks();
-    const gameCode = await getNextGameCode(playedAt);
+    for (const roundScores of rounds) {
+      const gameCode = await getNextGameCode(playedAt);
+      const ranks = computeRanks(roundScores);
 
-    const { data: gameData, error: gameError } = await supabase
-      .from("games")
-      .insert({
-        game_code: gameCode,
-        mode,
-        played_at: new Date(playedAt + "T00:00:00").toISOString(),
-        registered_by: registrantId || null,
-      })
-      .select("id")
-      .single();
+      const { data: gameData, error: gameError } = await supabase
+        .from("games")
+        .insert({
+          game_code: gameCode,
+          mode,
+          played_at: new Date(playedAt + "T00:00:00").toISOString(),
+          registered_by: registrantId || null,
+        })
+        .select("id")
+        .single();
 
-    if (gameError || !gameData) {
-      setIsSaving(false);
-      return;
+      if (gameError || !gameData) {
+        setIsSaving(false);
+        return;
+      }
+
+      await supabase.from("game_results").insert(
+        selectedPlayers.map((p) => ({
+          game_id: gameData.id,
+          player_id: p.id,
+          seat: seats[p.id],
+          is_dealer: p.id === dealerId,
+          raw_score: parseInt(roundScores[p.id], 10),
+          rank: ranks[p.id],
+        })),
+      );
     }
-
-    await supabase.from("game_results").insert(
-      selectedPlayers.map((p) => ({
-        game_id: gameData.id,
-        player_id: p.id,
-        seat: seats[p.id],
-        is_dealer: p.id === dealerId,
-        raw_score: parseInt(scores[p.id], 10),
-        rank: ranks[p.id],
-      })),
-    );
 
     setIsSaving(false);
     router.push("/history");
@@ -356,7 +593,7 @@ export default function NewGamePage() {
                 fullWidth
                 color="primary"
                 value={gameType}
-                onChange={(_, v) => v && setGameType(v)}
+                onChange={(_, v) => v !== null && setGameType(v)}
               >
                 <ToggleButton value="online">온라인</ToggleButton>
                 <ToggleButton value="offline">오프라인</ToggleButton>
@@ -380,38 +617,40 @@ export default function NewGamePage() {
               {isLoadingPlayers ? (
                 <CircularProgress size={20} />
               ) : (
-                <Select
-                  displayEmpty
-                  fullWidth
-                  size="small"
-                  value={registrantId}
-                  onChange={(e) => setRegistrantId(e.target.value)}
-                >
-                  <MenuItem disabled value="">
-                    등록자 선택
-                  </MenuItem>
-                  {players.map((p) => (
-                    <MenuItem key={p.id} value={p.id}>
-                      {p.name}
-                    </MenuItem>
-                  ))}
-                </Select>
+                <Autocomplete
+                  options={players}
+                  getOptionLabel={(p) => p.name}
+                  value={players.find((p) => p.id === registrantId) ?? null}
+                  onChange={(_, v) => setRegistrantId(v?.id ?? "")}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="등록자 검색"
+                      placeholder="이름으로 검색"
+                      size="small"
+                    />
+                  )}
+                  noOptionsText="선수 없음"
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                />
               )}
             </Stack>
 
-            <Paper
-              elevation={0}
-              sx={{
-                background: "linear-gradient(135deg, #1a5e3a 0%, #2d6a4f 100%)",
-                color: "primary.contrastText",
-                p: 2,
-              }}
-            >
-              <Typography sx={{ fontSize: 13, opacity: 0.8 }}>선택된 모드</Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 900 }}>
-                {getModeLabel(mode, settings)}
-              </Typography>
-            </Paper>
+            {gameType && (
+              <Paper
+                elevation={0}
+                sx={{
+                  background: "linear-gradient(135deg, #1a5e3a 0%, #2d6a4f 100%)",
+                  color: "primary.contrastText",
+                  p: 2,
+                }}
+              >
+                <Typography sx={{ fontSize: 13, opacity: 0.8 }}>선택된 모드</Typography>
+                <Typography sx={{ fontSize: 18, fontWeight: 900 }}>
+                  {getModeLabel(mode, settings)}
+                </Typography>
+              </Paper>
+            )}
           </Stack>
         )}
 
@@ -498,9 +737,9 @@ export default function NewGamePage() {
 
                 {selectedIds.length === 4 && (
                   <>
-                    {/* 오야 선택 */}
+                    {/* 기가 선택 */}
                     <Stack spacing={1}>
-                      <Typography sx={{ fontWeight: 700 }}>오야 (기준 플레이어)</Typography>
+                      <Typography sx={{ fontWeight: 700 }}>기가 (동 고정)</Typography>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
                         {selectedPlayers.map((p) => {
                           const isDealer = dealerId === p.id;
@@ -538,7 +777,7 @@ export default function NewGamePage() {
                               </Typography>
                               {isDealer && (
                                 <Typography sx={{ fontSize: 10, color: "#b5892a", fontWeight: 900 }}>
-                                  오야
+                                  기가
                                 </Typography>
                               )}
                             </Box>
@@ -589,6 +828,7 @@ export default function NewGamePage() {
                             players={selectedPlayers}
                             onAssign={assignSeat}
                             dealerId={dealerId}
+                            readOnly
                           />
                         </Box>
                         {/* 남 */}
@@ -602,7 +842,7 @@ export default function NewGamePage() {
                       </Box>
                       {Object.keys(seats).length < 4 && (
                         <Typography color="text.secondary" sx={{ fontSize: 12, textAlign: "center" }}>
-                          각 방위에 플레이어를 배정하세요
+                          서·남·북 자리에 플레이어를 배정하세요 (동은 기가 자동 배정)
                         </Typography>
                       )}
                     </Stack>
@@ -616,135 +856,31 @@ export default function NewGamePage() {
         {/* Step 3: 결과 입력 */}
         {activeStep === 2 && (
           <Stack spacing={2.5}>
-            <Typography sx={{ fontWeight: 700 }}>최종 점수 입력</Typography>
-            {(() => {
-              const ranks = computedRanks();
-              const RANK_COLORS = ["#b5892a", "#8c9aa3", "#8b6553", "#9e9e9e"];
-              return (
-                <Stack spacing={1.5}>
-                  {selectedPlayers.map((p) => {
-                    const rank = ranks[p.id];
-                    return (
-                      <Stack key={p.id} direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
-                        <Avatar sx={{ bgcolor: "primary.main", flexShrink: 0, width: 32, height: 32, fontSize: 14 }}>
-                          {p.name[0]}
-                        </Avatar>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
-                            {p.name}
-                            {p.id === dealerId && (
-                              <Typography component="span" sx={{ fontSize: 11, ml: 0.5, color: "#b5892a", fontWeight: 800 }}>
-                                (오야)
-                              </Typography>
-                            )}
-                          </Typography>
-                          <Typography color="text.secondary" sx={{ fontSize: 11 }}>
-                            {seats[p.id]}
-                          </Typography>
-                        </Box>
-                        <TextField
-                          size="small"
-                          sx={{ width: 120 }}
-                          type="number"
-                          value={scores[p.id] ?? ""}
-                          slotProps={{
-                            input: {
-                              endAdornment: <InputAdornment position="end">점</InputAdornment>,
-                            },
-                          }}
-                          onChange={(e) =>
-                            setScores((prev) => ({ ...prev, [p.id]: e.target.value }))
-                          }
-                        />
-                        {rank && (
-                          <Box
-                            sx={{
-                              minWidth: 36,
-                              textAlign: "center",
-                              bgcolor: rank <= 3 ? `${RANK_COLORS[rank - 1]}22` : "action.hover",
-                              border: `1.5px solid ${RANK_COLORS[rank - 1] ?? "#9e9e9e"}`,
-                              borderRadius: 1,
-                              py: 0.25,
-                            }}
-                          >
-                            <Typography
-                              sx={{
-                                fontSize: 14,
-                                fontWeight: 900,
-                                color: RANK_COLORS[rank - 1] ?? "text.secondary",
-                              }}
-                            >
-                              {rank}위
-                            </Typography>
-                          </Box>
-                        )}
-                      </Stack>
-                    );
-                  })}
-                </Stack>
-              );
-            })()}
+            {rounds.map((roundScores, index) => (
+              <Box key={index}>
+                {index > 0 && <Divider sx={{ mb: 2.5 }} />}
+                <RoundCard
+                  roundIndex={index}
+                  totalRounds={rounds.length}
+                  scores={roundScores}
+                  selectedPlayers={selectedPlayers}
+                  dealerId={dealerId}
+                  seats={seats}
+                  mode={mode}
+                  onScoreChange={(playerId, value) => updateRoundScore(index, playerId, value)}
+                  onRemove={() => removeRound(index)}
+                />
+              </Box>
+            ))}
 
-            {isStep3Valid && (
-              <Stack spacing={1}>
-                <Paper elevation={0} sx={{ bgcolor: "background.paper", border: 1, borderColor: "primary.main", p: 1.5 }}>
-                  <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
-                    <CheckCircleIcon color="primary" fontSize="small" />
-                    <Typography color="primary" sx={{ fontSize: 13, fontWeight: 700 }}>
-                      합계 {TOTAL_RAW_SCORE.toLocaleString()}점 기준 · 대국코드는 저장 시 자동 생성됩니다.
-                    </Typography>
-                  </Stack>
-                </Paper>
-
-                <TableContainer component={Paper} elevation={0} variant="outlined">
-                  <Table size="small" sx={{ minWidth: 520 }}>
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: "#2d6a4f" }}>
-                        {["이름", "점수", "순위", "우마", "오카", "최종", "반영"].map((h) => (
-                          <TableCell
-                            key={h}
-                            align={h === "이름" ? "left" : "right"}
-                            sx={{ color: "#fff", fontWeight: 700, py: 0.75 }}
-                          >
-                            {h}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {scoreRows.map((row) => (
-                        <TableRow
-                          key={row.player.id}
-                          sx={{ bgcolor: row.rank === 1 ? "#fff8e1" : "inherit" }}
-                        >
-                          <TableCell sx={{ fontWeight: row.rank === 1 ? 800 : 400 }}>
-                            {row.player.name}
-                          </TableCell>
-                          <TableCell align="right">{row.rawScore.toLocaleString()}</TableCell>
-                          <TableCell align="right">{row.rank}</TableCell>
-                          <TableCell
-                            align="right"
-                            sx={{ color: row.uma >= 0 ? "#2d6a4f" : "#c0392b", fontWeight: 700 }}
-                          >
-                            {formatPoint(row.uma, true)}
-                          </TableCell>
-                          <TableCell
-                            align="right"
-                            sx={{ color: row.oka >= 0 ? "#2d6a4f" : "#c0392b", fontWeight: 700 }}
-                          >
-                            {formatPoint(row.oka, true)}
-                          </TableCell>
-                          <TableCell align="right">{formatPoint(row.finalScore, true)}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 800 }}>
-                            {formatPoint(row.appliedScore, true)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Stack>
-            )}
+            <Button
+              fullWidth
+              startIcon={<AddIcon />}
+              variant="outlined"
+              onClick={addRound}
+            >
+              대국 추가
+            </Button>
           </Stack>
         )}
 
@@ -780,7 +916,7 @@ export default function NewGamePage() {
               variant="contained"
               onClick={handleSave}
             >
-              저장
+              {rounds.length > 1 ? `${rounds.length}대국 저장` : "저장"}
             </Button>
           )}
         </Stack>
