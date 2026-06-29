@@ -4,6 +4,8 @@ import AddIcon from "@mui/icons-material/Add";
 import BarChartIcon from "@mui/icons-material/BarChart";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import GroupsIcon from "@mui/icons-material/Groups";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import SettingsIcon from "@mui/icons-material/Settings";
 import {
   Box,
   Button,
@@ -12,6 +14,7 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  IconButton,
   Stack,
   Typography,
 } from "@mui/material";
@@ -81,7 +84,7 @@ export default function Home() {
         sx={{ maxWidth: 430, mx: "auto", minHeight: "100dvh", px: 2, pt: 2, pb: 10 }}
       >
         <Stack spacing={2.25}>
-          <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
+          <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
             <Box sx={{ flexGrow: 1 }}>
               <Typography component="h1" sx={{ fontSize: 24, fontWeight: 900 }}>
                 flagon mindsports gallery
@@ -91,6 +94,12 @@ export default function Home() {
               </Typography>
             </Box>
             <Chip color="primary" label="4인 마작" size="small" />
+            <IconButton component={Link} href="/rulebook" size="small" aria-label="룰북">
+              <MenuBookIcon fontSize="small" />
+            </IconButton>
+            <IconButton component={Link} href="/settings" size="small" aria-label="설정">
+              <SettingsIcon fontSize="small" />
+            </IconButton>
           </Stack>
 
           {/* CTA */}

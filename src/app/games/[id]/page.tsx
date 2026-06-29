@@ -208,11 +208,11 @@ export default function GameDetailPage({
                           {result.players?.name}
                         </Typography>
                         {result.is_dealer && (
-                          <Chip label="오야" size="small" color="primary" variant="outlined" />
+                          <Chip label="기가" size="small" color="primary" variant="outlined" />
                         )}
                       </Stack>
                       <Typography color="text.secondary" sx={{ fontSize: 12 }}>
-                        {result.seat} · {result.raw_score.toLocaleString()}점
+                        {result.seat ? `${result.seat} · ` : ""}{result.raw_score.toLocaleString()}점
                       </Typography>
                     </Box>
 

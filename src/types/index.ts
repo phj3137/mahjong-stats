@@ -21,7 +21,7 @@ export type GameResult = {
   id: string;
   game_id: string;
   player_id: string;
-  seat: Seat;
+  seat: Seat | null;
   is_dealer: boolean;
   raw_score: number;
   rank: number;
