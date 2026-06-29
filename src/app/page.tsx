@@ -84,16 +84,46 @@ export default function Home() {
         sx={{ maxWidth: 430, mx: "auto", minHeight: "100dvh", px: 2, pt: 2, pb: 10 }}
       >
         <Stack spacing={2.25}>
-          <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography component="h1" sx={{ fontSize: 24, fontWeight: 900 }}>
-                flagon mindsports gallery
-              </Typography>
-              <Typography color="text.secondary" sx={{ fontSize: 13 }}>
-                {todayLabel}
+          <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
+            {/* 마작패 로고 */}
+            <Box
+              sx={{
+                width: 52,
+                height: 52,
+                borderRadius: 2,
+                background: "linear-gradient(135deg, #1a5e3a 0%, #2d6a4f 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                boxShadow: "0 2px 8px rgba(45,106,79,0.35)",
+              }}
+            >
+              <Typography sx={{ fontSize: 28, lineHeight: 1, userSelect: "none" }}>
+                🀄
               </Typography>
             </Box>
-            <Chip color="primary" label="4인 마작" size="small" />
+
+            {/* 타이틀 */}
+            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+              <Typography
+                component="h1"
+                sx={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.3px", lineHeight: 1.2 }}
+              >
+                mahjong stats
+              </Typography>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mt: 0.25 }}>
+                <Typography color="text.secondary" sx={{ fontSize: 11.5 }}>
+                  flagon mindsports
+                </Typography>
+                <Box sx={{ width: 3, height: 3, borderRadius: "50%", bgcolor: "text.disabled" }} />
+                <Typography color="text.secondary" sx={{ fontSize: 11.5 }}>
+                  {todayLabel}
+                </Typography>
+              </Stack>
+            </Box>
+
+            {/* 액션 버튼 */}
             <IconButton component={Link} href="/rulebook" size="small" aria-label="룰북">
               <MenuBookIcon fontSize="small" />
             </IconButton>

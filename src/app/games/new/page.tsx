@@ -3,7 +3,6 @@
 import AddIcon from "@mui/icons-material/Add";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
-import SwapVertIcon from "@mui/icons-material/SwapVert";
 import {
   Alert,
   Autocomplete,
@@ -119,7 +118,8 @@ function RoundCard({
   onScoreChange,
   onRemove,
   tieOrder,
-  onSwapTied,
+  tieClickSeq,
+  onClickTied,
 }: {
   roundIndex: number;
   totalRounds: number;
@@ -130,7 +130,8 @@ function RoundCard({
   onScoreChange: (playerId: string, value: string) => void;
   onRemove: () => void;
   tieOrder: Record<string, number>;
-  onSwapTied: (id1: string, id2: string) => void;
+  tieClickSeq: Record<string, string[]>;
+  onClickTied: (playerId: string, score: number) => void;
 }) {
   const { settings } = useScoreSettings();
 
@@ -243,59 +244,98 @@ function RoundCard({
           {totalScore === TOTAL_RAW_SCORE && (
             <>
               {tiedGroups.length > 0 && (
-                <Alert severity="warning" variant="outlined" sx={{ py: 1 }}>
-                  <Typography sx={{ fontSize: 12, fontWeight: 800, mb: 1 }}>
-                    동점자 순위 조정
-                  </Typography>
-                  <Stack spacing={1.25}>
-                    {tiedGroups.map((group) => (
-                      <Box key={group.score}>
-                        <Typography sx={{ fontSize: 11, color: "text.secondary", mb: 0.75 }}>
-                          {group.score.toLocaleString()}점 동점
-                        </Typography>
-                        <Stack spacing={0.5}>
-                          {group.players.map((entry, idx) => (
-                            <Stack
-                              key={entry.player.id}
-                              direction="row"
-                              sx={{ alignItems: "center", gap: 1 }}
+                <Stack spacing={1}>
+                  {tiedGroups.map((group) => {
+                    const scoreKey = String(group.score);
+                    const clickSeq = tieClickSeq[scoreKey] ?? [];
+                    const isComplete = clickSeq.length === group.players.length;
+
+                    return (
+                      <Alert
+                        key={group.score}
+                        severity={isComplete ? "success" : "warning"}
+                        variant="outlined"
+                        sx={{ py: 0.75 }}
+                      >
+                        <Stack direction="row" sx={{ alignItems: "center", mb: 0.75 }}>
+                          <Typography sx={{ fontSize: 12, fontWeight: 800, flex: 1 }}>
+                            {group.score.toLocaleString()}점 동점
+                            {isComplete ? " — 순위 확정" : " — 높은 순위부터 클릭하세요"}
+                          </Typography>
+                          {clickSeq.length > 0 && (
+                            <Button
+                              size="small"
+                              color="inherit"
+                              sx={{ fontSize: 10, py: 0, px: 0.75, minWidth: 0, opacity: 0.7 }}
+                              onClick={() => onClickTied(clickSeq[0], group.score)}
                             >
-                              <Typography
+                              초기화
+                            </Button>
+                          )}
+                        </Stack>
+                        <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75 }}>
+                          {group.players.map((entry) => {
+                            const clickIdx = clickSeq.indexOf(entry.player.id);
+                            const isClicked = clickIdx !== -1;
+                            const rankColor = RANK_COLORS[entry.rank - 1] ?? "#9e9e9e";
+
+                            return (
+                              <Box
+                                key={entry.player.id}
+                                onClick={() => onClickTied(entry.player.id, group.score)}
                                 sx={{
-                                  fontSize: 13,
-                                  fontWeight: 900,
-                                  color: RANK_COLORS[entry.rank - 1] ?? "text.secondary",
-                                  minWidth: 30,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 0.75,
+                                  px: 1.25,
+                                  py: 0.5,
+                                  border: "1.5px solid",
+                                  borderColor: isComplete
+                                    ? rankColor
+                                    : isClicked
+                                      ? "primary.main"
+                                      : "divider",
+                                  borderRadius: 1.5,
+                                  bgcolor: isComplete
+                                    ? `${rankColor}22`
+                                    : isClicked
+                                      ? "action.selected"
+                                      : "background.paper",
+                                  cursor: "pointer",
+                                  transition: "all 0.15s",
+                                  "&:hover": {
+                                    borderColor: isComplete ? rankColor : "primary.light",
+                                  },
                                 }}
                               >
-                                {entry.rank}위
-                              </Typography>
-                              <Typography sx={{ fontSize: 13, fontWeight: 700, flex: 1 }}>
-                                {entry.player.name}
-                              </Typography>
-                              {idx < group.players.length - 1 && (
-                                <Button
-                                  size="small"
-                                  startIcon={<SwapVertIcon fontSize="small" />}
-                                  variant="outlined"
-                                  sx={{ fontSize: 11, py: 0.25, px: 1, minWidth: 0 }}
-                                  onClick={() =>
-                                    onSwapTied(
-                                      entry.player.id,
-                                      group.players[idx + 1].player.id,
-                                    )
-                                  }
+                                <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                                  {entry.player.name}
+                                </Typography>
+                                <Typography
+                                  sx={{
+                                    fontSize: 12,
+                                    fontWeight: 900,
+                                    color: isComplete
+                                      ? rankColor
+                                      : isClicked
+                                        ? "primary.main"
+                                        : "text.disabled",
+                                  }}
                                 >
-                                  바꾸기
-                                </Button>
-                              )}
-                            </Stack>
-                          ))}
+                                  {isComplete
+                                    ? `${entry.rank}위`
+                                    : isClicked
+                                      ? `${clickIdx + 1}번째`
+                                      : "?"}
+                                </Typography>
+                              </Box>
+                            );
+                          })}
                         </Stack>
-                      </Box>
-                    ))}
-                  </Stack>
-                </Alert>
+                      </Alert>
+                    );
+                  })}
+                </Stack>
               )}
 
               <Paper
@@ -385,6 +425,8 @@ export default function NewGamePage() {
   // Step 3
   const [rounds, setRounds] = useState<Array<Record<string, string>>>([{}]);
   const [tieOrders, setTieOrders] = useState<Array<Record<string, number>>>([{}]);
+  // 동점자 클릭 순서: [roundIndex][scoreKey] = [playerId, ...]
+  const [tieClickSeqs, setTieClickSeqs] = useState<Array<Record<string, string[]>>>([{}]);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -435,8 +477,12 @@ export default function NewGamePage() {
       next[roundIndex] = { ...next[roundIndex], [playerId]: value };
       return next;
     });
-    // 점수가 바뀌면 해당 대국의 동점 조정 초기화
     setTieOrders((prev) => {
+      const next = [...prev];
+      next[roundIndex] = {};
+      return next;
+    });
+    setTieClickSeqs((prev) => {
       const next = [...prev];
       next[roundIndex] = {};
       return next;
@@ -446,27 +492,61 @@ export default function NewGamePage() {
   const addRound = () => {
     setRounds((prev) => [...prev, {}]);
     setTieOrders((prev) => [...prev, {}]);
+    setTieClickSeqs((prev) => [...prev, {}]);
   };
 
   const removeRound = (index: number) => {
     setRounds((prev) => prev.filter((_, i) => i !== index));
     setTieOrders((prev) => prev.filter((_, i) => i !== index));
+    setTieClickSeqs((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const swapTied = (roundIndex: number, id1: string, id2: string) => {
+  const handleTieClick = (roundIndex: number, playerId: string, score: number) => {
     const roundScores = rounds[roundIndex];
     const baseRanks = computeBaseRanks(roundScores, selectedPlayers);
-    setTieOrders((prev) => {
+    const groupPlayers = selectedPlayers.filter(
+      (p) => parseInt(roundScores[p.id] ?? "", 10) === score,
+    );
+    const minRank = Math.min(...groupPlayers.map((p) => baseRanks[p.id]));
+    const scoreKey = String(score);
+    const currentSeq = tieClickSeqs[roundIndex]?.[scoreKey] ?? [];
+    const isComplete = currentSeq.length === groupPlayers.length;
+
+    // 이미 클릭한 플레이어 재클릭 또는 완성된 그룹 클릭 → 초기화
+    let newSeq: string[];
+    if (isComplete || currentSeq.includes(playerId)) {
+      newSeq = [];
+    } else {
+      newSeq = [...currentSeq, playerId];
+    }
+
+    setTieClickSeqs((prev) => {
       const next = [...prev];
-      const current = { ...next[roundIndex] };
-      const currentRanks = { ...baseRanks, ...current };
-      const rank1 = currentRanks[id1];
-      const rank2 = currentRanks[id2];
-      current[id1] = rank2;
-      current[id2] = rank1;
-      next[roundIndex] = current;
+      next[roundIndex] = { ...next[roundIndex], [scoreKey]: newSeq };
       return next;
     });
+
+    if (newSeq.length === groupPlayers.length && newSeq.length > 0) {
+      // 클릭 순서대로 순위 할당
+      setTieOrders((prev) => {
+        const next = [...prev];
+        const roundOrders = { ...next[roundIndex] };
+        newSeq.forEach((pid, i) => {
+          roundOrders[pid] = minRank + i;
+        });
+        next[roundIndex] = roundOrders;
+        return next;
+      });
+    } else {
+      // 초기화 또는 부분 선택 — 이 그룹 순위 초기화
+      setTieOrders((prev) => {
+        const next = [...prev];
+        const roundOrders = { ...next[roundIndex] };
+        groupPlayers.forEach((p) => delete roundOrders[p.id]);
+        next[roundIndex] = roundOrders;
+        return next;
+      });
+    }
   };
 
   const handleSave = async () => {
@@ -754,7 +834,8 @@ export default function NewGamePage() {
                   onScoreChange={(playerId, value) => updateRoundScore(index, playerId, value)}
                   onRemove={() => removeRound(index)}
                   tieOrder={tieOrders[index] ?? {}}
-                  onSwapTied={(id1, id2) => swapTied(index, id1, id2)}
+                  tieClickSeq={tieClickSeqs[index] ?? {}}
+                  onClickTied={(playerId, score) => handleTieClick(index, playerId, score)}
                 />
               </Box>
             ))}
