@@ -163,6 +163,23 @@ function RoundCard({
     <Box>
       <Stack direction="row" sx={{ alignItems: "center", mb: 1.5 }}>
         <Typography sx={{ fontWeight: 700, flex: 1 }}>대국 {roundIndex + 1}</Typography>
+        {(() => {
+          const remaining = TOTAL_RAW_SCORE - totalScore;
+          const hasInput = selectedPlayers.some((p) => scores[p.id] !== undefined && scores[p.id] !== "");
+          if (!hasInput) return null;
+          return (
+            <Typography
+              sx={{
+                fontSize: 11.5,
+                fontWeight: 700,
+                color: remaining === 0 ? "success.main" : remaining < 0 ? "error.main" : "text.secondary",
+                mr: 1,
+              }}
+            >
+              {remaining === 0 ? "합계 완성" : `잔여 ${remaining.toLocaleString()}점`}
+            </Typography>
+          );
+        })()}
         {totalRounds > 1 && (
           <Button
             color="error"
